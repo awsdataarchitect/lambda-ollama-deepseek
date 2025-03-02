@@ -13,29 +13,13 @@ RUN dnf install -y wget gzip tar \
     && dnf clean all \
     && rm -rf /var/cache/dnf/*
 
-# Create optimized entrypoint script
-RUN echo '#!/bin/sh\n\
-# Start Ollama in background\n\
-cd /tmp\n\
-nohup /mnt/bin/ollama serve > /tmp/ollama.log 2>&1 &\n\
-\n\
-# Wait for Ollama to initialize (max 5 seconds)\n\
-for i in {1..5}; do\n\
-  if /mnt/bin/ollama list >/dev/null 2>&1; then\n\
-    break\n\
-  fi\n\
-  sleep 1\n\
-done\n\
-\n\
-# Pre-load the model in background\n\
-nohup /mnt/bin/ollama run deepseek-r1:1.5b "Initialize" > /tmp/model_init.log 2>&1 &\n\
-\n\
-# Execute the Lambda handler\n\
-exec /lambda-entrypoint.sh "$@"' > /entrypoint.sh && chmod +x /entrypoint.sh
+# Modify entrypoint.sh to start Ollama first, then proceed with Lambda
+RUN sed -i '1i #!/bin/sh\ncd /tmp\nnohup /mnt/bin/ollama serve &\nsleep 1\n/mnt/bin/ollama run deepseek-r1:1.5b Hi' /lambda-entrypoint.sh
 
 # Set working directory
 WORKDIR ${LAMBDA_TASK_ROOT}
 
 # Set the entry point and CMD
-ENTRYPOINT ["/entrypoint.sh"]
+ENTRYPOINT ["/lambda-entrypoint.sh"]
+
 CMD ["index.lambda_handler"]
